@@ -1,9 +1,10 @@
-// 噴射動畫的資源
-let jetSpriteSheet;
-let jetFrames = [];
-const jetFrameWidth = 30.5; // 305 / 10
-const jetFrameHeight = 24;
-const totalJetFrames = 10;
+
+// 卡比待機動畫的資源
+let kirbyIdleSpriteSheet;
+let kirbyIdleFrames = []; // 卡比待機動畫
+const kirbyIdleFrameWidth = 30.5; // 305 / 10
+const kirbyIdleFrameHeight = 24;
+const totalKirbyIdleFrames = 6; // 前 6 幀是卡比
 
 // 翻滾動畫的資源
 let rollSpriteSheet;
@@ -26,6 +27,32 @@ const chargeFrameWidth = 40.61; // 528 / 13
 const chargeFrameHeight = 32;
 const totalChargeFrames = 13;
 
+// 海綿寶寶動畫資源
+let spongebobSpriteSheet;
+let spongebobFrames = [];
+const spongebobFrameWidth = 499 / 12;
+const spongebobFrameHeight = 36;
+const totalSpongebobFrames = 12;
+let spongebobX, spongebobY; // 海綿寶寶的獨立位置
+
+// 海綿寶寶跌倒動畫資源
+let fallSpriteSheet;
+let fallFrames = [];
+const fallFrameWidth = 644 / 14; // 假設有 14 幀
+const fallFrameHeight = 34;
+const totalFallFrames = 14;
+let isSpongebobFalling = false;
+let fallFrameCounter = 0;
+let spongebobFallDirection = 1; // 儲存跌倒時的方向
+
+// 轉圈角色動畫資源
+let spinnerSpriteSheet;
+let spinnerFrames = [];
+const spinnerFrameWidth = 225 / 10; // 22.5
+const spinnerFrameHeight = 20;
+const totalSpinnerFrames = 10;
+let spinnerX, spinnerY; // 轉圈角色的位置
+
 // 動畫與角色狀態
 let currentFrame = 0; // 共用影格計數器
 let characterX, characterY;
@@ -36,16 +63,21 @@ let isCharging = false;
 let uppercutFrameCounter = 0;
 let chargeFrameCounter = 0;
 let direction = 1; // 1: 向右, -1: 向左
+
+// 對話系統狀態
+let isDialogueActive = false;
+let kirbyInput;
+let spongebobText = ''; // 海綿寶寶頭上的文字
 const moveSpeed = 45;
 const scaleFactor = 5; // 放大倍率
 const jumpSpeed = 45;
 
 // 在 setup() 之前執行，用於載入外部檔案
 function preload() {
-  // 載入噴射動畫圖片
-  jetSpriteSheet = loadImage('卡比噴射/全部的圖卡比噴射.png', 
-    () => console.log('噴射圖片載入成功！'),
-    () => console.error('錯誤：無法載入噴射圖片！')
+  // 載入卡比待機動畫圖片
+  kirbyIdleSpriteSheet = loadImage('卡比噴射/全部的圖卡比噴射.png', 
+    () => console.log('卡比待機圖片載入成功！'),
+    () => console.error('錯誤：無法載入卡比待機圖片！')
   );
   // 載入翻滾動畫圖片
   rollSpriteSheet = loadImage('翻滾/全部的圖 翻滾.png',
@@ -62,6 +94,21 @@ function preload() {
     () => console.log('集氣圖片載入成功！'),
     () => console.error('錯誤：無法載入集氣圖片！')
   );
+  // 載入海綿寶寶動畫圖片 (請確認檔案路徑是否正確)
+  spongebobSpriteSheet = loadImage('2/跳舞/全部 跳舞.png',
+    () => console.log('海綿寶寶圖片載入成功！'),
+    () => console.error('錯誤：無法載入海綿寶寶圖片！')
+  );
+  // 載入跌倒動畫圖片
+  fallSpriteSheet = loadImage('2/跌倒/全部 跌倒.png',
+    () => console.log('跌倒圖片載入成功！'),
+    () => console.error('錯誤：無法載入跌倒圖片！')
+  );
+  // 載入轉圈角色動畫圖片
+  spinnerSpriteSheet = loadImage('3/轉圈/全部 轉圈.png',
+    () => console.log('轉圈角色圖片載入成功！'),
+    () => console.error('錯誤：無法載入轉圈角色圖片！')
+  );
 }
 
 function setup() {
@@ -73,12 +120,28 @@ function setup() {
   characterY = height / 2;
   originalY = characterY; // 儲存初始 Y 位置
 
-  // 切割噴射動畫
-  if (jetSpriteSheet.width > 0) {
-    for (let i = 0; i < totalJetFrames; i++) {
-      let x = Math.round(i * jetFrameWidth);
-      let w = Math.round(jetFrameWidth);
-      jetFrames.push(jetSpriteSheet.get(x, 0, w, jetFrameHeight));
+  // 設定海綿寶寶的初始位置，使其獨立於卡比
+  spongebobX = width / 4; // 例如，在畫布左邊四分之一處
+  spongebobY = characterY; // 和卡比在相同的高度
+
+  // 設定轉圈角色的初始位置，使其獨立於卡比
+  spinnerX = width * 3 / 4; // 例如，在畫布右邊四分之三處
+  spinnerY = characterY; // 和卡比在相同的高度
+
+  // --- 對話系統設定 ---
+  // 建立文字輸入框但先隱藏
+  kirbyInput = createInput();
+  kirbyInput.hide();
+  kirbyInput.style('font-size', '18px');
+
+  // 切割卡比待機動畫
+  if (kirbyIdleSpriteSheet.width > 0) {
+    // 只切割前 6 幀作為卡比待機動畫
+    for (let i = 0; i < totalKirbyIdleFrames; i++) {
+      let x = Math.round(i * kirbyIdleFrameWidth); // 當前幀的起始 x
+      let nextX = Math.round((i + 1) * kirbyIdleFrameWidth); // 下一幀的起始 x
+      let w = nextX - x; // 當前幀的精確寬度
+      kirbyIdleFrames.push(kirbyIdleSpriteSheet.get(x, 0, w, kirbyIdleFrameHeight));
     }
   }
 
@@ -106,6 +169,34 @@ function setup() {
       let x = Math.round(i * chargeFrameWidth);
       let w = Math.round(chargeFrameWidth);
       chargeFrames.push(chargeSpriteSheet.get(x, 0, w, chargeFrameHeight));
+    }
+  }
+
+  // 切割海綿寶寶動畫
+  if (spongebobSpriteSheet.width > 0) {
+    for (let i = 0; i < totalSpongebobFrames; i++) {
+      let x = Math.round(i * spongebobFrameWidth);
+      let w = Math.round(spongebobFrameWidth);
+      spongebobFrames.push(spongebobSpriteSheet.get(x, 0, w, spongebobFrameHeight));
+    }
+  }
+
+  // 切割跌倒動畫
+  if (fallSpriteSheet.width > 0) {
+    for (let i = 0; i < totalFallFrames; i++) {
+      let x = Math.round(i * fallFrameWidth);
+      let w = Math.round(fallFrameWidth);
+      fallFrames.push(fallSpriteSheet.get(x, 0, w, fallFrameHeight));
+    }
+  }
+
+  // 切割轉圈角色動畫
+  if (spinnerSpriteSheet.width > 0) {
+    for (let i = 0; i < totalSpinnerFrames; i++) {
+      let x = Math.round(i * spinnerFrameWidth);
+      let nextX = Math.round((i + 1) * spinnerFrameWidth);
+      let w = nextX - x;
+      spinnerFrames.push(spinnerSpriteSheet.get(x, 0, w, spinnerFrameHeight));
     }
   }
 
@@ -171,11 +262,93 @@ function draw() {
     image(img, 0, 0, rollFrameWidth * scaleFactor, rollFrameHeight * scaleFactor);
     pop(); // 恢復繪圖狀態    
   } else {
-    // 播放站立(噴射)動畫
-    if (jetFrames.length > 0) {
-      let frameIndex = floor(currentFrame) % totalJetFrames;
-      let img = jetFrames[frameIndex];
-      image(img, characterX, characterY, jetFrameWidth * scaleFactor, jetFrameHeight * scaleFactor);
+    // 播放待機動畫
+    if (kirbyIdleFrames.length > 0) {
+      push();
+      translate(characterX, characterY);
+      scale(direction, 1); // 讓待機的卡比也能根據方向翻轉
+
+      // 繪製卡比待機動畫
+      let kirbyFrameIndex = floor(currentFrame) % totalKirbyIdleFrames;
+      let kirbyImg = kirbyIdleFrames[kirbyFrameIndex];
+      image(kirbyImg, 0, 0, kirbyIdleFrameWidth * scaleFactor, kirbyIdleFrameHeight * scaleFactor);
+      pop();
+    }
+  }
+
+  // --- 海綿寶寶邏輯 ---
+  // 偵測碰撞
+  const collisionDistance = 100; // 觸發碰撞的距離閾值
+  if (dist(characterX, characterY, spongebobX, spongebobY) < collisionDistance && !isSpongebobFalling) {
+    isSpongebobFalling = true; // 觸發跌倒狀態
+    fallFrameCounter = 0; // 從第一幀開始播放跌倒動畫
+    // 記錄被撞到的方向，以便正確翻轉跌倒動畫
+    spongebobFallDirection = (characterX > spongebobX) ? 1 : -1;
+  }
+
+  // 根據狀態繪製海綿寶寶
+  if (isSpongebobFalling && fallFrames.length > 0) {
+    // 播放跌倒動畫
+    let img = fallFrames[fallFrameCounter];
+    push();
+    translate(spongebobX, spongebobY);
+    scale(spongebobFallDirection, 1); // 使用跌倒時記錄的方向來翻轉
+    image(img, 0, 0, fallFrameWidth * scaleFactor, fallFrameHeight * scaleFactor);
+    pop();
+
+    fallFrameCounter++;
+    
+    // 跌倒動畫播放完畢後，重設狀態
+    if (fallFrameCounter >= totalFallFrames) {
+      isSpongebobFalling = false;
+    }
+  } else if (spongebobFrames.length > 0) {
+    // 播放跳舞動畫
+    let frameIndex = floor(currentFrame) % totalSpongebobFrames;
+    let img = spongebobFrames[frameIndex];
+
+    // 判斷卡比相對於海綿寶寶的位置來決定方向
+    let spongebobDirection = (characterX > spongebobX) ? 1 : -1;
+
+    // 使用 push/pop 來獨立翻轉海綿寶寶，不影響其他繪圖
+    push();
+    translate(spongebobX, spongebobY); // 將原點移到海綿寶寶的位置
+    scale(spongebobDirection, 1); // 根據方向翻轉 X 軸
+    image(img, 0, 0, spongebobFrameWidth * scaleFactor, spongebobFrameHeight * scaleFactor);
+    pop();
+
+    // 繪製海綿寶寶頭上的文字
+    if (spongebobText) {
+      textSize(24);
+      textAlign(CENTER, CENTER);
+      text(spongebobText, spongebobX, spongebobY - 80);
+    }
+  }
+
+  // --- 轉圈角色邏輯 ---
+  if (spinnerFrames.length > 0) {
+    // 循環播放動畫
+    let frameIndex = floor(currentFrame) % totalSpinnerFrames;
+    let img = spinnerFrames[frameIndex];
+    // 使用在 setup() 中設定好的獨立位置來繪製
+    image(img, spinnerX, spinnerY, spinnerFrameWidth * scaleFactor, spinnerFrameHeight * scaleFactor);
+
+    // --- 對話觸發與顯示 ---
+    const dialogueDistance = 120;
+    // 如果卡比靠近星星，且對話未開始
+    if (dist(characterX, characterY, spinnerX, spinnerY) < dialogueDistance && !isDialogueActive) {
+      isDialogueActive = true;
+      kirbyInput.show(); // 顯示輸入框
+    }
+
+    // 如果在對話模式中
+    if (isDialogueActive) {
+      // 顯示星星頭上的文字
+      textSize(22);
+      textAlign(CENTER, CENTER);
+      text("需要我解答嗎?", spinnerX, spinnerY - 50);
+      // 更新輸入框位置在卡比上方
+      kirbyInput.position(characterX - kirbyInput.width / 2, characterY - 100);
     }
   }
 
@@ -211,4 +384,16 @@ function keyPressed() {
     isCharging = true;
     chargeFrameCounter = 0; // 重設集氣動畫的影格
   }
+
+  // 當對話模式啟動且玩家按下 ENTER 鍵
+  if (isDialogueActive && keyCode === ENTER) {
+    const inputText = kirbyInput.value(); // 獲取輸入的文字
+    spongebobText = inputText + "，歡迎你"; // 設定海綿寶寶的新文字
+
+    // 重設對話狀態
+    isDialogueActive = false;
+    kirbyInput.value(''); // 清空輸入框
+    kirbyInput.hide(); // 隱藏輸入框
+  }
+
 }
