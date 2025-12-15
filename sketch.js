@@ -65,12 +65,19 @@ let chargeFrameCounter = 0;
 let direction = 1; // 1: 向右, -1: 向左
 
 // 對話系統狀態
-let isDialogueActive = false;
+let quizData; // 儲存從 CSV 載入的題庫
+let currentQuestion; // 當前的題目物件
+let quizDialogueText = "靠近我開始問答挑戰！"; // 轉圈角色的對話文字
+let quizState = 'IDLE'; // 問答狀態: IDLE, ASKING, FEEDBACK
+
 let kirbyInput;
 let spongebobText = ''; // 海綿寶寶頭上的文字
 const moveSpeed = 45;
-const scaleFactor = 5; // 放大倍率
+const scaleFactor = 5; // 放大倍率 (原為 5)
 const jumpSpeed = 45;
+let isDialogueActive = false; // 維持原有變數，用於觸發
+
+
 
 // 在 setup() 之前執行，用於載入外部檔案
 function preload() {
@@ -109,6 +116,12 @@ function preload() {
     () => console.log('轉圈角色圖片載入成功！'),
     () => console.error('錯誤：無法載入轉圈角色圖片！')
   );
+  // 載入 CSV 題庫檔案
+  quizData = loadTable('quiz.csv', 'csv', 'header',
+    () => console.log('CSV 題庫載入成功！'),
+    () => console.error('錯誤：無法載入 CSV 題庫！')
+  );
+
 }
 
 function setup() {
@@ -208,6 +221,13 @@ function setup() {
 function draw() {
   // 設定背景顏色
   background('#ffcad4');
+
+  // --- 顯示學生資訊 ---
+  fill(0); // 設定文字為黑色
+  noStroke(); // 移除文字邊框
+  textSize(32); // 設定文字大小
+  textAlign(LEFT, TOP); // 設定文字對齊左上角
+  text('學號414730589 姓名:黃讌婷', 10, 10); // 在 (10, 10) 座標繪製文字
 
   // 只有在不執行特殊動作時，才處理左右移動
   if (!isUppercutting && !isCharging) {
@@ -335,20 +355,48 @@ function draw() {
 
     // --- 對話觸發與顯示 ---
     const dialogueDistance = 120;
-    // 如果卡比靠近星星，且對話未開始
-    if (dist(characterX, characterY, spinnerX, spinnerY) < dialogueDistance && !isDialogueActive) {
+    // 如果卡比靠近轉圈角色，且問答未開始
+    if (dist(characterX, characterY, spinnerX, spinnerY) < dialogueDistance && quizState === 'IDLE') {
       isDialogueActive = true;
-      kirbyInput.show(); // 顯示輸入框
+      startQuiz(); // 開始問答
     }
 
-    // 如果在對話模式中
+    // 如果在對話模式中 (問答進行中)
     if (isDialogueActive) {
-      // 顯示星星頭上的文字
+      // --- 繪製整合的作答 UI ---
+      const uiY = characterY - 110; // UI 區塊的 Y 軸位置
+      const boxPadding = 10;
+      const textLabel = "請作答:";
+      
+      // 設定文字樣式以計算寬度
+      textSize(18);
+      const labelWidth = textWidth(textLabel);
+      
+      // 計算整個方塊的總寬度和位置
+      const boxWidth = labelWidth + kirbyInput.width + boxPadding * 3;
+      const boxX = characterX - boxWidth / 2;
+      const boxY = uiY - kirbyInput.height / 2 - boxPadding;
+      const boxHeight = kirbyInput.height + boxPadding * 2;
+
+      // 繪製紫色背景方塊
+      fill(153, 102, 255, 200); // 紫色，帶點透明度
+      noStroke();
+      rectMode(CORNER); // 使用左上角模式繪製背景，方便定位
+      rect(boxX, boxY, boxWidth, boxHeight, 10); // 圓角矩形
+
+      // 繪製 "請作答" 文字
+      fill(255); // 白色文字
+      textAlign(LEFT, CENTER);
+      text(textLabel, boxX + boxPadding, uiY);
+
+      // 顯示轉圈角色頭上的文字 (題目或回饋)
       textSize(22);
       textAlign(CENTER, CENTER);
-      text("需要我解答嗎?", spinnerX, spinnerY - 50);
-      // 更新輸入框位置在卡比上方
-      kirbyInput.position(characterX - kirbyInput.width / 2, characterY - 100);
+      text(quizDialogueText, spinnerX, spinnerY - 50);
+      
+      // 顯示並定位輸入框
+      kirbyInput.show(); // 顯示輸入框
+      kirbyInput.position(boxX + labelWidth + boxPadding * 2, uiY - kirbyInput.height / 2);
     }
   }
 
@@ -386,14 +434,48 @@ function keyPressed() {
   }
 
   // 當對話模式啟動且玩家按下 ENTER 鍵
-  if (isDialogueActive && keyCode === ENTER) {
-    const inputText = kirbyInput.value(); // 獲取輸入的文字
-    spongebobText = inputText + "，歡迎你"; // 設定海綿寶寶的新文字
-
-    // 重設對話狀態
-    isDialogueActive = false;
-    kirbyInput.value(''); // 清空輸入框
-    kirbyInput.hide(); // 隱藏輸入框
+  if (quizState === 'ASKING' && keyCode === ENTER) {
+    checkAnswer();
   }
 
+}
+
+// --- 問答遊戲相關函式 ---
+
+/**
+ * 開始問答遊戲
+ */
+function startQuiz() {
+  quizState = 'ASKING';
+  pickNewQuestion();
+}
+
+/**
+ * 從題庫中隨機抽取一個新題目
+ */
+function pickNewQuestion() {
+  let questionIndex = floor(random(quizData.getRowCount()));
+  currentQuestion = quizData.getRow(questionIndex);
+  
+  quizDialogueText = currentQuestion.getString('question');
+  quizState = 'ASKING';
+  kirbyInput.value(''); // 清空輸入框
+}
+
+/**
+ * 檢查玩家輸入的答案
+ */
+function checkAnswer() {
+  if (quizState !== 'ASKING') return;
+
+  const playerAnswer = kirbyInput.value();
+  const correctAnswer = currentQuestion.getString('answer');
+
+  if (playerAnswer === correctAnswer) {
+    quizDialogueText = currentQuestion.getString('correct_feedback');
+  } else {
+    quizDialogueText = currentQuestion.getString('incorrect_feedback');
+  }
+  quizState = 'FEEDBACK';
+  setTimeout(pickNewQuestion, 3000); // 3秒後出下一題
 }
