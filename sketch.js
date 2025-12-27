@@ -57,8 +57,8 @@ let spinnerX, spinnerY; // 轉圈角色的位置
 // 怪物角色資源
 let monsterIdleSpriteSheet;
 let monsterIdleFrames = [];
-const monsterIdleFrameWidth = 2445 / 10; // 244.5
-const monsterIdleFrameHeight = 160;
+const monsterIdleFrameWidth = 275 / 10; // 27.5
+const monsterIdleFrameHeight = 28;
 const totalMonsterIdleFrames = 10;
 
 let monsterEatSpriteSheet;
@@ -201,7 +201,7 @@ function preload() {
   );
 
   // 載入怪物待機動畫
-  monsterIdleSpriteSheet = loadImage('怪物/1/全部怪物.png',
+  monsterIdleSpriteSheet = loadImage('怪物/全部怪物.png',
     () => console.log('怪物待機圖片載入成功！'),
     () => console.error('錯誤：無法載入怪物待機圖片！')
   );
