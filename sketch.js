@@ -150,6 +150,16 @@ let notesIframe; // 筆記 iframe
 let closeNotesButton; // 關閉筆記按鈕
 let isViewingNotes = false; // 是否正在查看筆記
 let bgm; // 背景音樂變數
+let failSound; // 失敗音效變數
+let successSound; // 成功音效變數
+let gameOverSound; // 遊戲結束音效變數
+let addLifeSound; // 加命音效變數
+let gameClearSound; // 通關音效變數
+let volumeSlider; // 音量控制滑桿
+let addLifeTextActive = false; // +1 文字動畫狀態
+let addLifeTextX = 0;
+let addLifeTextY = 0;
+let addLifeTextTimer = 0;
 
 // 是/否按鈕設定（會在 draw 中根據 boxX/uiY 計算，這裡保留狀態）
 let tfButtonYes = {x:0,y:0,w:0,h:0};
@@ -273,6 +283,36 @@ function preload() {
     () => console.log('音樂載入成功！'),
     () => console.error('錯誤：無法載入音樂！')
   );
+
+  // 載入失敗音效
+  failSound = loadSound('失敗音效.mp3',
+    () => console.log('失敗音效載入成功！'),
+    () => console.error('錯誤：無法載入失敗音效！')
+  );
+
+  // 載入成功音效
+  successSound = loadSound('成功音效.mp3',
+    () => console.log('成功音效載入成功！'),
+    () => console.error('錯誤：無法載入成功音效！')
+  );
+
+  // 載入遊戲結束音效
+  gameOverSound = loadSound('遊戲結束.mp3',
+    () => console.log('遊戲結束音效載入成功！'),
+    () => console.error('錯誤：無法載入遊戲結束音效！')
+  );
+
+  // 載入加命音效
+  addLifeSound = loadSound('加命音效.mp3',
+    () => console.log('加命音效載入成功！'),
+    () => console.error('錯誤：無法載入加命音效！')
+  );
+
+  // 載入通關音效
+  gameClearSound = loadSound('通關.mp3',
+    () => console.log('通關音效載入成功！'),
+    () => console.error('錯誤：無法載入通關音效！')
+  );
   
 }
 
@@ -300,6 +340,19 @@ function setup() {
   // 設定加一命角色的初始位置（暫時靠在海綿寶寶左邊）
   addLifeX = spongebobX - (spongebobFrameWidth * scaleFactor) / 2 - addLifeDisplayWidth / 2 - 10;
   addLifeY = spongebobY;
+
+  // 建立音量滑桿 (最小值 0, 最大值 1, 預設 0.5, 間距 0.01)
+  volumeSlider = createSlider(0, 1, 0.5, 0.01);
+  volumeSlider.position(20, height - 40);
+  volumeSlider.style('width', '100px');
+
+  // --- 音量設定區 (0.0 為靜音，1.0 為最大聲) ---
+  if (bgm) bgm.setVolume(0.5);           // 背景音樂
+  if (failSound) failSound.setVolume(4.0);     // 失敗音效 (增益)
+  if (successSound) successSound.setVolume(0.25); // 成功音效
+  if (gameOverSound) gameOverSound.setVolume(0.8); // 遊戲結束音效
+  if (addLifeSound) addLifeSound.setVolume(0.2); // 加命音效
+  if (gameClearSound) gameClearSound.setVolume(0.4); // 通關音效
 
   // 初始化可用題目索引
   if (quizData) {
@@ -453,6 +506,9 @@ function draw() {
   // 預先清除背景，避免震動時邊緣出現殘影
   background(0);
 
+  // 設定總音量 (Master Volume)
+  if (volumeSlider) outputVolume(volumeSlider.value());
+
   // --- 遊戲狀態控制 ---
   if (gameState === 'START') {
     // --- 開始畫面 ---
@@ -490,6 +546,7 @@ function draw() {
     textSize(32);
     textAlign(CENTER, CENTER);
     text("開始遊戲", width / 2, btnY + btnH / 2);
+    drawVolumeUI(); // 繪製音量文字
     return; // 停止繪製後續內容
 
   } else if (gameState === 'NAME_INPUT') {
@@ -523,6 +580,7 @@ function draw() {
     fill(255);
     textSize(24);
     text("確定", width / 2, btnY + btnH / 2);
+    drawVolumeUI(); // 繪製音量文字
     return; // 停止繪製後續內容
   }
 
@@ -553,6 +611,7 @@ function draw() {
     fill(0);
     textSize(32);
     text("再玩一次", width / 2, btnY + btnH / 2);
+    drawVolumeUI(); // 繪製音量文字
     return; // 停止繪製其餘遊戲內容
   }
 
@@ -681,6 +740,12 @@ function draw() {
     if (dAdd < 60 && addLifeActive) {
       addLifeActive = false;
       lives = min(maxLives, lives + 1);
+      if (addLifeSound) addLifeSound.play();
+      // 觸發 +1 文字動畫
+      addLifeTextActive = true;
+      addLifeTextX = characterX;
+      addLifeTextY = characterY - 60;
+      addLifeTextTimer = 40; // 持續 40 幀
     }
   }
 
@@ -1090,6 +1155,24 @@ function draw() {
     pop();
   }
 
+  // --- +1 加命文字動畫 ---
+  if (addLifeTextActive) {
+    push();
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    fill(255, 50, 50, map(addLifeTextTimer, 0, 40, 0, 255)); // 淡出效果
+    stroke(255);
+    strokeWeight(2);
+    text("+1", addLifeTextX, addLifeTextY);
+    pop();
+    
+    addLifeTextY -= 1; // 向上飄
+    addLifeTextTimer--;
+    if (addLifeTextTimer <= 0) {
+      addLifeTextActive = false;
+    }
+  }
+
   // 繪製生命
   drawHearts();
 
@@ -1118,6 +1201,9 @@ function draw() {
     pop();
     correctEffectTimer--;
   }
+
+  // 繪製音量文字
+  drawVolumeUI();
 
   // 更新影格計數器
   currentFrame++;
@@ -1205,7 +1291,6 @@ function mousePressed() {
       gameState = 'NAME_INPUT';
       // 播放背景音樂 (循環播放)
       if (bgm && !bgm.isPlaying()) {
-        bgm.setVolume(0.5); // 設定音量 (0.0 ~ 1.0)
         bgm.loop();
       }
     }
@@ -1322,8 +1407,10 @@ function checkAnswer() {
   if (playerAnswer === correctAnswer) {
     quizDialogueText = currentQuestion.getString('correct_feedback');
     correctEffectTimer = 10; // 觸發特效
+    if (successSound) successSound.play();
   } else {
     quizDialogueText = currentQuestion.getString('incorrect_feedback');
+    if (failSound) failSound.play();
   }
   quizState = 'FEEDBACK';
   setTimeout(pickNewQuestion, 3000); // 3秒後出下一題
@@ -1340,13 +1427,17 @@ function handleTFAnswer(valueBool) {
     quizDialogueText = currentQuestion.getString('correct_feedback');
     correctEffectTimer = 10; // 觸發特效
     questionsCorrect++;
+    if (successSound) successSound.play();
   } else {
     quizDialogueText = currentQuestion.getString('incorrect_feedback');
+    if (failSound) failSound.play();
     // 扣一顆愛心
     lives = max(0, lives - 1);
     damageEffectTimer = 10; // 觸發特效，持續 10 幀
     if (lives <= 0) {
       gameOver = true;
+      if (bgm && bgm.isPlaying()) bgm.stop(); // 停止背景音樂
+      if (gameOverSound) gameOverSound.play(); // 播放遊戲結束音效
     }
   }
   
@@ -1366,6 +1457,8 @@ function handleTFAnswer(valueBool) {
       if (isLevel3 && questionsCorrect >= 6) {
         isGameCleared = true;
         quizDialogueText = '恭喜完全通關！';
+        if (bgm && bgm.isPlaying()) bgm.stop(); // 停止背景音樂
+        if (gameClearSound) gameClearSound.play(); // 播放通關音效
       }
       quizState = 'IDLE';
       isDialogueActive = false; // 結束對話互動
@@ -1464,6 +1557,9 @@ function windowResized() {
     notesIframe.size(windowWidth, windowHeight);
     if (closeNotesButton) closeNotesButton.position(windowWidth - 120, 20);
   }
+  if (volumeSlider) {
+    volumeSlider.position(20, height - 40);
+  }
 }
 
 // 移除靠近深藍色（線條雜訊）的像素
@@ -1521,4 +1617,16 @@ function closeNotes() {
   isViewingNotes = false;
   if (notesIframe) notesIframe.hide();
   if (closeNotesButton) closeNotesButton.hide();
+}
+
+// 繪製音量介面文字
+function drawVolumeUI() {
+  if (volumeSlider) {
+    push();
+    fill(255);
+    textSize(16);
+    textAlign(LEFT, CENTER);
+    text("音量", 130, height - 32); // 位於滑桿右側
+    pop();
+  }
 }
