@@ -61,12 +61,6 @@ const monsterIdleFrameWidth = 275 / 10; // 27.5
 const monsterIdleFrameHeight = 28;
 const totalMonsterIdleFrames = 10;
 
-let monsterEatSpriteSheet;
-let monsterEatFrames = [];
-const monsterEatFrameWidth = 100 / 5; // 20
-const monsterEatFrameHeight = 16;
-const totalMonsterEatFrames = 5;
-
 let monsterX, monsterY;
 let isKirbyEaten = false; // 卡比是否被吃掉
 let isLevel3 = false; // 是否進入第三關
@@ -155,6 +149,7 @@ let playerName = ''; // 玩家名稱
 let notesIframe; // 筆記 iframe
 let closeNotesButton; // 關閉筆記按鈕
 let isViewingNotes = false; // 是否正在查看筆記
+let bgm; // 背景音樂變數
 
 // 是/否按鈕設定（會在 draw 中根據 boxX/uiY 計算，這裡保留狀態）
 let tfButtonYes = {x:0,y:0,w:0,h:0};
@@ -204,11 +199,6 @@ function preload() {
   monsterIdleSpriteSheet = loadImage('怪物/全部怪物.png',
     () => console.log('怪物待機圖片載入成功！'),
     () => console.error('錯誤：無法載入怪物待機圖片！')
-  );
-  // 載入怪物吃掉動畫
-  monsterEatSpriteSheet = loadImage('怪物/2/全部怪物.png',
-    () => console.log('怪物吃掉圖片載入成功！'),
-    () => console.error('錯誤：無法載入怪物吃掉圖片！')
   );
 
   // 載入第二關角色
@@ -276,6 +266,12 @@ function preload() {
   bgImageStart = loadImage('背景/開始.png',
     () => console.log('開始背景載入成功！'),
     () => console.error('錯誤：無法載入開始背景！')
+  );
+
+  // 載入背景音樂
+  bgm = loadSound('音樂.wav',
+    () => console.log('音樂載入成功！'),
+    () => console.error('錯誤：無法載入音樂！')
   );
   
 }
@@ -397,15 +393,6 @@ function setup() {
       let x = Math.round(i * monsterIdleFrameWidth);
       let w = Math.round(monsterIdleFrameWidth);
       monsterIdleFrames.push(monsterIdleSpriteSheet.get(x, 0, w, monsterIdleFrameHeight));
-    }
-  }
-
-  // 切割怪物吃掉動畫
-  if (monsterEatSpriteSheet.width > 0) {
-    for (let i = 0; i < totalMonsterEatFrames; i++) {
-      let x = Math.round(i * monsterEatFrameWidth);
-      let w = Math.round(monsterEatFrameWidth);
-      monsterEatFrames.push(monsterEatSpriteSheet.get(x, 0, w, monsterEatFrameHeight));
     }
   }
 
@@ -958,16 +945,10 @@ function draw() {
   let currentMonsterW, currentMonsterH;
   
   if (isLevel3) {
-     // Level 3: 顯示怪物/2 (吃掉動畫)，播放一次後消失
-     if (monsterEatFrames.length > 0 && monsterLevel3Counter < totalMonsterEatFrames) {
-        currentMonsterImg = monsterEatFrames[monsterLevel3Counter];
-        currentMonsterW = monsterEatFrameWidth;
-        currentMonsterH = monsterEatFrameHeight;
-        monsterLevel3Counter++;
-        // 當動畫播放結束時，觸發煙霧特效
-        if (monsterLevel3Counter === totalMonsterEatFrames) {
-          createExplosion(monsterX, monsterY);
-        }
+     // Level 3: 怪物直接消失，僅觸發一次煙霧特效
+     if (monsterLevel3Counter === 0) {
+        createExplosion(monsterX, monsterY);
+        monsterLevel3Counter = 1;
      }
   } else if (isKirbyEaten) {
      // Level 2: 顯示怪物/1 (待機動畫)
@@ -1222,6 +1203,11 @@ function mousePressed() {
     // 檢查是否點擊 "開始遊戲"
     if (mouseX >= btnX && mouseX <= btnX + btnW && mouseY >= btnY && mouseY <= btnY + btnH) {
       gameState = 'NAME_INPUT';
+      // 播放背景音樂 (循環播放)
+      if (bgm && !bgm.isPlaying()) {
+        bgm.setVolume(0.5); // 設定音量 (0.0 ~ 1.0)
+        bgm.loop();
+      }
     }
     return;
   }
