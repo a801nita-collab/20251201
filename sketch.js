@@ -269,7 +269,7 @@ function preload() {
   );
 
   // 載入背景音樂
-  bgm = loadSound('音樂.wav',
+  bgm = loadSound('背景音樂.mp3',
     () => console.log('音樂載入成功！'),
     () => console.error('錯誤：無法載入音樂！')
   );
